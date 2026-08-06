@@ -6,7 +6,7 @@ export const Users = pgTable(
         id: serial("id").primaryKey(),
         uuid: uuid("uuid").defaultRandom(),
         first_name: varchar("first_name", { length: 100 }).notNull(),
-        middle_name: varchar("middle_name", { length: 100 }).notNull(),
+        middle_name: varchar("middle_name", { length: 100 }),
         last_name: varchar("last_name", { length: 100 }).notNull(),
         email: varchar("email", { length: 255 }).notNull(),
         avatar: varchar("avatar", { length: 255 }),
