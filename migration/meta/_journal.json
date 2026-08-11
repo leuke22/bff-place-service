@@ -8,6 +8,13 @@
       "when": 1785850000409,
       "tag": "0000_orange_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786452847903,
+      "tag": "0001_hesitant_tinkerer",
+      "breakpoints": true
     }
   ]
 }
