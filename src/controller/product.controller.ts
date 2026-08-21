@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
-import { eq, isNull, and } from "drizzle-orm";
+import { eq, isNull, and, asc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { Products, Categories } from "../models";
 import { createProductSchema, updateProductSchema } from "../utils/validators";
+import { buildQueryOptions } from "../utils/queryHelper";
+import { ListResponse } from "../utils/responseHelper";
 
 export async function createProduct(req: Request, res: Response) {
     const parsed = createProductSchema.safeParse(req.body);
@@ -30,14 +32,31 @@ export async function createProduct(req: Request, res: Response) {
 export async function listProducts(req: Request, res: Response) {
     const categoryId = req.query.category_id ? Number(req.query.category_id) : undefined;
 
-    const products = await db.query.Products.findMany({
-        where: categoryId
-            ? and(eq(Products.category_id, categoryId), isNull(Products.deleted_at))
-            : isNull(Products.deleted_at),
-        orderBy: (products, { asc }) => [asc(products.name)],
-    });
+    const baseWhere = categoryId
+        ? and(eq(Products.category_id, categoryId), isNull(Products.deleted_at))
+        : isNull(Products.deleted_at);
 
-    return res.json({ products });
+    const { where, orderBy, limit, offset, with: withRelations, page } = buildQueryOptions(
+        req.query as Record<string, unknown>,
+        {
+            columns: {
+                name: Products.name,
+                description: Products.description,
+                price: Products.price,
+                category_id: Products.category_id,
+            },
+            allowedRelations: ["category", "variants"],
+            baseWhere,
+            defaultOrderBy: [asc(Products.name)],
+        }
+    );
+
+    const [products, [{ count }]] = await Promise.all([
+        db.query.Products.findMany({ where, orderBy, limit, offset, with: withRelations }),
+        db.select({ count: sql<number>`count(*)` }).from(Products).where(where),
+    ]);
+
+    return ListResponse(res, products, Number(count))
 }
 
 export async function getProduct(req: Request, res: Response) {

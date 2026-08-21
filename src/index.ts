@@ -1,12 +1,19 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { env } from "./env";
 import routes from "./routes";
 import { checkDatabaseConnection } from "./db";
 
 const app = express();
 
-app.use(cors());
+app.use(cookieParser());
+
+app.use(cors({
+    origin: "http://localhost:3001", 
+    credentials: true 
+}));
+
 app.use(express.json());
 
 app.get("/health", (_req, res) => {

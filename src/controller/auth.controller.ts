@@ -61,23 +61,29 @@ export async function login(req: Request, res: Response) {
 
     await storeRefreshToken(user.id, refreshToken);
 
+    res.cookie("refresh_token", refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/api/auth",
+        maxAge: parseDurationToMs(env.JWT_REFRESH_EXPIRES_IN),
+    });
+
     return res.json({
         user: { id: user.id, uuid: user.uuid, first_name: user.first_name, email: user.email },
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        access_token: accessToken
     });
 }
 
 export async function refresh(req: Request, res: Response) {
-    const parsed = refreshSchema.safeParse(req.body);
-    if (!parsed.success) {
-        return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
+    const refreshToken = req.cookies?.refresh_token;
+    if (!refreshToken) {
+        return res.status(401).json({ message: "No refresh token provided" });
     }
-    const { refresh_token } = parsed.data;
 
     try {
-        const payload = verifyRefreshToken(refresh_token);
-        const tokenHash = hashToken(refresh_token);
+        const payload = verifyRefreshToken(refreshToken);
+        const tokenHash = hashToken(refreshToken);
 
         const stored = await db.query.RefreshTokens.findFirst({
             where: and(eq(RefreshTokens.token_hash, tokenHash), isNull(RefreshTokens.revoked_at)),
@@ -95,18 +101,17 @@ export async function refresh(req: Request, res: Response) {
 }
 
 export async function logout(req: Request, res: Response) {
-    const parsed = refreshSchema.safeParse(req.body);
-    if (!parsed.success) {
-        return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
+    const refreshToken = req.cookies?.refresh_token;
+
+    if (refreshToken) {
+        const tokenHash = hashToken(refreshToken);
+        await db
+            .update(RefreshTokens)
+            .set({ revoked_at: new Date() })
+            .where(eq(RefreshTokens.token_hash, tokenHash));
     }
 
-    const tokenHash = hashToken(parsed.data.refresh_token);
-
-    await db
-        .update(RefreshTokens)
-        .set({ revoked_at: new Date() })
-        .where(eq(RefreshTokens.token_hash, tokenHash));
-
+    res.clearCookie("refresh_token", { path: "/api/auth" });
     return res.status(204).send();
 }
 
