@@ -5,7 +5,7 @@ import { db } from "../db";
 import { Products, Categories } from "../models";
 import { createProductSchema, updateProductSchema } from "../utils/validators";
 import { buildQueryOptions } from "../utils/queryHelper";
-import { ListResponse } from "../utils/responseHelper";
+import { DataResponse, ListResponse } from "../utils/responseHelper";
 
 export async function createProduct(req: Request, res: Response) {
     const parsed = createProductSchema.safeParse(req.body);
@@ -26,7 +26,7 @@ export async function createProduct(req: Request, res: Response) {
         .values({ category_id, name, description, price: price.toFixed(2), image })
         .returning();
 
-    return res.status(201).json({ product });
+    return DataResponse(res, product, 201);
 }
 
 export async function listProducts(req: Request, res: Response) {
@@ -97,7 +97,7 @@ export async function updateProduct(req: Request, res: Response) {
     if (!updated) {
         return res.status(404).json({ message: "Product not found" });
     }
-    return res.json({ product: updated });
+    return DataResponse(res, updated);
 }
 
 export async function deleteProduct(req: Request, res: Response) {

@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
-import { eq, isNull, and } from "drizzle-orm";
+import { eq, isNull, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { Categories } from "../models";
 import { createCategorySchema, updateCategorySchema } from "../utils/validators";
+import { ListResponse } from "../utils/responseHelper";
 
 export async function createCategory(req: Request, res: Response) {
     const parsed = createCategorySchema.safeParse(req.body);
@@ -16,11 +17,15 @@ export async function createCategory(req: Request, res: Response) {
 }
 
 export async function listCategories(req: Request, res: Response) {
-    const categories = await db.query.Categories.findMany({
-        where: isNull(Categories.deleted_at),
-        orderBy: (categories, { asc }) => [asc(categories.name)],
-    });
-    return res.json({ categories });
+    const [categories, [{ count }]] = await Promise.all([
+        db.query.Categories.findMany({
+            where: isNull(Categories.deleted_at),
+            orderBy: (categories, { asc }) => [asc(categories.name)],
+        }), 
+        db.select({ count: sql<number>`count(*)` }).from(Categories).where(isNull(Categories.deleted_at)),
+    ]);
+
+    return ListResponse(res, categories, Number(count))
 }
 
 export async function getCategory(req: Request, res: Response) {
