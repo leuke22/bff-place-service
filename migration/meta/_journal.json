@@ -15,6 +15,13 @@
       "when": 1786452847903,
       "tag": "0001_hesitant_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787968744278,
+      "tag": "0002_fat_taskmaster",
+      "breakpoints": true
     }
   ]
 }

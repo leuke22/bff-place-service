@@ -64,7 +64,7 @@ export async function login(req: Request, res: Response) {
     res.cookie("refresh_token", refreshToken, {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         path: "/api/auth",
         maxAge: parseDurationToMs(env.JWT_REFRESH_EXPIRES_IN),
     });
