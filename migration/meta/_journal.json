@@ -22,6 +22,13 @@
       "when": 1787968744278,
       "tag": "0002_fat_taskmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788590609076,
+      "tag": "0003_fancy_lockheed",
+      "breakpoints": true
     }
   ]
 }

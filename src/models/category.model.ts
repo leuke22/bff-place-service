@@ -6,6 +6,7 @@ export const Categories = pgTable("Categories", {
     name: varchar("name", { length: 100 }).notNull(),
     description: varchar("description", { length: 255 }),
     color: varchar("color", { length: 20 }).notNull().default("secondary"),
+    icon: varchar("icon", { length: 50 }).notNull().default("lucide:egg-fried"),
     image: varchar("image", { length: 255 }),
     is_active: boolean("is_active").default(true).notNull(),
     created_at: timestamp("created_at").defaultNow().notNull(),

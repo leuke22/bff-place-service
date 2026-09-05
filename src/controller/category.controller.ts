@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { eq, isNull, and, sql } from "drizzle-orm";
+import { eq, isNull, and, sql, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { Categories } from "../models";
+import { Categories, Products } from "../models";
 import { createCategorySchema, updateCategorySchema } from "../utils/validators";
 import { ListResponse } from "../utils/responseHelper";
 
@@ -26,6 +26,31 @@ export async function listCategories(req: Request, res: Response) {
     ]);
 
     return ListResponse(res, categories, Number(count))
+}
+
+export async function listCategoryByProductCount(req: Request, res: Response) {
+    const [categories, [{ count }]] = await Promise.all([
+        db.select({
+            id: Categories.id,
+            uuid: Categories.uuid,
+            name: Categories.name,
+            image: Categories.image,
+            icon: Categories.icon,
+            description: Categories.description,
+            color: Categories.color,
+            is_active: Categories.is_active,
+            created_at: Categories.created_at,
+            // add any other Category columns you need here
+            products_count: sql<number>`count(${Products.id})`.as("product_count"),
+        })
+        .from(Categories)
+        .where(isNull(Categories.deleted_at))
+        .groupBy(Categories.id)
+        .orderBy(asc(Categories.name)),
+        db.select({ count: sql<number>`count(*)` }).from(Categories).where(isNull(Categories.deleted_at))
+    ])
+
+    return ListResponse(res, categories, Number(count));
 }
 
 export async function getCategory(req: Request, res: Response) {
