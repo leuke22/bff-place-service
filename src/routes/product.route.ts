@@ -10,7 +10,7 @@ router.use(requireAuth);
 router.post("/", createProduct);
 router.get("/", listProducts);
 router.get("/:id", getProduct);
-router.patch("/:id", updateProduct);
+router.put("/:id", updateProduct);
 router.delete("/:id", deleteProduct);
 
 router.use("/:productId/ingredients", productIngredientRoutes);

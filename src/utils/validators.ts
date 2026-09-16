@@ -20,6 +20,10 @@ export const refreshSchema = z.object({
 export const createCategorySchema = z.object({
     name: z.string().min(1, "Name is required").max(100),
     description: z.string().max(255).optional(),
+    icon: z.string().max(100).optional(),
+    color: z.string().max(20).optional(),
+    is_active: z.boolean().optional(),
+    image: z.string().max(255).optional(),
 });
 
 export const createProductSchema = z.object({

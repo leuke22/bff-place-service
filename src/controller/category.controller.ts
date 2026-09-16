@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { Categories, Products } from "../models";
 import { createCategorySchema, updateCategorySchema } from "../utils/validators";
-import { ListResponse } from "../utils/responseHelper";
+import { DataResponse, ListResponse } from "../utils/responseHelper";
 
 export async function createCategory(req: Request, res: Response) {
     const parsed = createCategorySchema.safeParse(req.body);
@@ -13,7 +13,7 @@ export async function createCategory(req: Request, res: Response) {
     }
 
     const [category] = await db.insert(Categories).values(parsed.data).returning();
-    return res.status(201).json({ category });
+    return DataResponse(res, category);
 }
 
 export async function listCategories(req: Request, res: Response) {
@@ -54,19 +54,21 @@ export async function listCategoryByProductCount(req: Request, res: Response) {
 }
 
 export async function getCategory(req: Request, res: Response) {
-    const id = Number(req.params.id);
-    const category = await db.query.Categories.findFirst({
-        where: and(eq(Categories.id, id), isNull(Categories.deleted_at)),
+    const id = req.params.id as string;
+
+    const categories = await db.query.Categories.findFirst({
+        where: and(eq(Categories.uuid, id), isNull(Categories.deleted_at)),
     });
 
-    if (!category) {
-        return res.status(404).json({ message: "Category not found" });
+    if (!categories) {
+        return res.status(404).json({ message: "Categories not found" });
     }
-    return res.json({ category });
+
+    return DataResponse(res, categories);
 }
 
 export async function updateCategory(req: Request, res: Response) {
-    const id = Number(req.params.id);
+    const uuid = req.params.id as string;
     const parsed = updateCategorySchema.safeParse(req.body);
     if (!parsed.success) {
         return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
@@ -75,22 +77,22 @@ export async function updateCategory(req: Request, res: Response) {
     const [updated] = await db
         .update(Categories)
         .set({ ...parsed.data, updated_at: new Date() })
-        .where(and(eq(Categories.id, id), isNull(Categories.deleted_at)))
+        .where(and(eq(Categories.uuid, uuid), isNull(Categories.deleted_at)))
         .returning();
 
     if (!updated) {
         return res.status(404).json({ message: "Category not found" });
     }
-    return res.json({ category: updated });
+    return DataResponse(res, updated);
 }
 
 export async function deleteCategory(req: Request, res: Response) {
-    const id = Number(req.params.id);
+    const uuid = req.params.id as string;
 
     const [deleted] = await db
         .update(Categories)
         .set({ deleted_at: new Date() })
-        .where(and(eq(Categories.id, id), isNull(Categories.deleted_at)))
+        .where(and(eq(Categories.uuid, uuid), isNull(Categories.deleted_at)))
         .returning();
 
     if (!deleted) {

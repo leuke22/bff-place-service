@@ -60,19 +60,20 @@ export async function listProducts(req: Request, res: Response) {
 }
 
 export async function getProduct(req: Request, res: Response) {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     const product = await db.query.Products.findFirst({
-        where: and(eq(Products.id, id), isNull(Products.deleted_at)),
+        where: and(eq(Products.uuid, id), isNull(Products.deleted_at)),
         with: {
             variants: true,
+            category: true
         },
     });
 
     if (!product) {
         return res.status(404).json({ message: "Product not found" });
     }
-    return res.json({ product });
+    return DataResponse(res, product);
 }
 
 export async function updateProduct(req: Request, res: Response) {

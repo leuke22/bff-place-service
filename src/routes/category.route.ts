@@ -10,7 +10,7 @@ router.post("/", createCategory);
 router.get("/", listCategories);
 router.get("/product-count", listCategoryByProductCount);
 router.get("/:id", getCategory);
-router.patch("/:id", updateCategory);
+router.put("/:id", updateCategory);
 router.delete("/:id", deleteCategory);
 
 export default router;
