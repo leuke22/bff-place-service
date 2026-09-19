@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
-import { eq, isNull, and } from "drizzle-orm";
+import { eq, isNull, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { Ingredients } from "../models";
 import { createIngredientSchema, updateIngredientSchema } from "../utils/validators";
+import { DataResponse, ListResponse } from "../utils/responseHelper";
 
 export async function createIngredient(req: Request, res: Response) {
     const parsed = createIngredientSchema.safeParse(req.body);
@@ -22,22 +23,26 @@ export async function createIngredient(req: Request, res: Response) {
         })
         .returning();
 
-    return res.status(201).json({ ingredient });
+    return DataResponse(res, ingredient, 201);
 }
 
 export async function listIngredients(req: Request, res: Response) {
     const lowStockOnly = req.query.low_stock === "true";
+    const baseWhere = isNull(Ingredients.deleted_at);
 
-    const ingredients = await db.query.Ingredients.findMany({
-        where: isNull(Ingredients.deleted_at),
-        orderBy: (ingredients, { asc }) => [asc(ingredients.name)],
-    });
+    const [ingredients, [{ count }]] = await Promise.all([
+        db.query.Ingredients.findMany({
+            where: baseWhere,
+            orderBy: (ingredients, { asc }) => [asc(ingredients.name)],
+        }),
+        db.select({ count: sql<number>`count(*)` }).from(Ingredients).where(baseWhere),
+    ]);
 
     const filtered = lowStockOnly
         ? ingredients.filter((i) => Number(i.current_stock) <= Number(i.reorder_level))
         : ingredients;
 
-    return res.json({ ingredients: filtered });
+    return ListResponse(res, filtered, lowStockOnly ? filtered.length : Number(count));
 }
 
 export async function getIngredient(req: Request, res: Response) {
@@ -49,7 +54,7 @@ export async function getIngredient(req: Request, res: Response) {
     if (!ingredient) {
         return res.status(404).json({ message: "Ingredient not found" });
     }
-    return res.json({ ingredient });
+    return DataResponse(res, ingredient);
 }
 
 export async function updateIngredient(req: Request, res: Response) {
@@ -73,7 +78,7 @@ export async function updateIngredient(req: Request, res: Response) {
     if (!updated) {
         return res.status(404).json({ message: "Ingredient not found" });
     }
-    return res.json({ ingredient: updated });
+    return DataResponse(res, updated);
 }
 
 export async function deleteIngredient(req: Request, res: Response) {
