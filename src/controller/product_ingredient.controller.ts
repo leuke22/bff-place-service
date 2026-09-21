@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { Products, Ingredients, ProductIngredients } from "../models";
 import { addRecipeItemSchema, updateRecipeItemSchema } from "../utils/validators";
+import { DataResponse, ListResponse } from "../utils/responseHelper";
 
 export async function addRecipeItem(req: Request, res: Response) {
     const productId = Number(req.params.productId);
@@ -35,7 +36,7 @@ export async function addRecipeItem(req: Request, res: Response) {
         .values({ product_id: productId, ingredient_id, quantity_used: quantity_used.toFixed(3) })
         .returning();
 
-    return res.status(201).json({ recipe_item: item });
+    return DataResponse(res, item, 201);
 }
 
 export async function listRecipe(req: Request, res: Response) {
@@ -44,9 +45,10 @@ export async function listRecipe(req: Request, res: Response) {
     const recipe = await db.query.ProductIngredients.findMany({
         where: eq(ProductIngredients.product_id, productId),
         with: { ingredient: true },
+        orderBy: (pi, { asc }) => [asc(pi.created_at)],
     });
 
-    return res.json({ recipe });
+    return ListResponse(res, recipe, recipe.length);
 }
 
 export async function updateRecipeItem(req: Request, res: Response) {
@@ -66,7 +68,7 @@ export async function updateRecipeItem(req: Request, res: Response) {
     if (!updated) {
         return res.status(404).json({ message: "Recipe item not found" });
     }
-    return res.json({ recipe_item: updated });
+    return DataResponse(res, updated);
 }
 
 export async function removeRecipeItem(req: Request, res: Response) {
