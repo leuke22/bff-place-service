@@ -51,6 +51,15 @@ export const createSupplierSchema = z.object({
     is_active: z.boolean().optional(),
 });
 
+export const createStockMovementSchema = z.object({
+    ingredient_id: z.number().int().positive("ingredient_id is required"),
+    type: z.enum(["in", "out", "adjustment"], { message: "type must be one of in, out, adjustment" }),
+    quantity: z.number().positive("quantity must be greater than 0"),
+    reason: z.string().max(255).optional(),
+    reference_type: z.string().max(50).optional(),
+    reference_id: z.number().int().positive().optional(),
+});
+
 export const addRecipeItemSchema = z.object({
     ingredient_id: z.number().int().positive("ingredient_id is required"),
     quantity_used: z.number().positive("quantity_used must be greater than 0"),
@@ -83,3 +92,5 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
+
+export type CreateStockMovementInput = z.infer<typeof createStockMovementSchema>;
