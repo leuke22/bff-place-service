@@ -1,0 +1,1 @@
+ALTER TABLE "Ingredients" ADD COLUMN "image" varchar(255);

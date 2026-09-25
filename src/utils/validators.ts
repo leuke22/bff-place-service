@@ -37,9 +37,19 @@ export const createProductSchema = z.object({
 export const createIngredientSchema = z.object({
     name: z.string().min(1, "Name is required").max(150),
     unit: z.enum(["kg", "g", "L", "ml", "pcs"], { message: "unit must be one of kg, g, L, ml, pcs" }),
+    image: z.string().max(255).optional(),
     current_stock: z.number().nonnegative().default(0),
     reorder_level: z.number().nonnegative().default(0),
-}); 
+});
+
+export const createSupplierSchema = z.object({
+    name: z.string().min(1, "Name is required").max(150),
+    contact_person: z.string().max(150).optional(),
+    contact_number: z.string().max(30).optional(),
+    email: z.email("Invalid email address").max(255).optional(),
+    address: z.string().max(255).optional(),
+    is_active: z.boolean().optional(),
+});
 
 export const addRecipeItemSchema = z.object({
     ingredient_id: z.number().int().positive("ingredient_id is required"),
@@ -50,9 +60,11 @@ export const updateRecipeItemSchema = z.object({
     quantity_used: z.number().positive("quantity_used must be greater than 0"),
 });
 
+
 export const updateCategorySchema = createCategorySchema.partial();
 export const updateProductSchema = createProductSchema.partial();
 export const updateIngredientSchema = createIngredientSchema.partial();
+export const updateSupplierSchema = createSupplierSchema.partial();
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
@@ -68,3 +80,6 @@ export type UpdateRecipeItemInput = z.infer<typeof updateRecipeItemSchema>;
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
+export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;

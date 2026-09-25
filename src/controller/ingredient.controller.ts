@@ -11,13 +11,14 @@ export async function createIngredient(req: Request, res: Response) {
     if (!parsed.success) {
         return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
     }
-    const { name, unit, current_stock, reorder_level } = parsed.data;
+    const { name, unit, image, current_stock, reorder_level } = parsed.data;
 
     const [ingredient] = await db
         .insert(Ingredients)
         .values({
             name,
             unit,
+            image,
             current_stock: current_stock.toFixed(3),
             reorder_level: reorder_level.toFixed(3),
         })
