@@ -69,6 +69,16 @@ export const updateRecipeItemSchema = z.object({
     quantity_used: z.number().positive("quantity_used must be greater than 0"),
 });
 
+export const purchaseOrderItemSchema = z.object({
+    ingredient_id: z.number().int().positive("ingredient_id is required"),
+    quantity: z.number().positive("quantity must be greater than 0"),
+    unit_cost: z.number().nonnegative("unit_cost must be 0 or more"),
+});
+
+export const createPurchaseOrderSchema = z.object({
+    supplier_id: z.number().int().positive("supplier_id is required"),
+    items: z.array(purchaseOrderItemSchema).min(1, "At least one item is required"),
+});
 
 export const updateCategorySchema = createCategorySchema.partial();
 export const updateProductSchema = createProductSchema.partial();
@@ -94,3 +104,6 @@ export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
 
 export type CreateStockMovementInput = z.infer<typeof createStockMovementSchema>;
+
+export type PurchaseOrderItemInput = z.infer<typeof purchaseOrderItemSchema>;
+export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
