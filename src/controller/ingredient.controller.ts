@@ -47,9 +47,9 @@ export async function listIngredients(req: Request, res: Response) {
 }
 
 export async function getIngredient(req: Request, res: Response) {
-    const id = Number(req.params.id);
+    const id = String(req.params.id);
     const ingredient = await db.query.Ingredients.findFirst({
-        where: and(eq(Ingredients.id, id), isNull(Ingredients.deleted_at)),
+        where: and(eq(Ingredients.uuid, id), isNull(Ingredients.deleted_at)),
     });
 
     if (!ingredient) {
@@ -59,7 +59,7 @@ export async function getIngredient(req: Request, res: Response) {
 }
 
 export async function updateIngredient(req: Request, res: Response) {
-    const id = Number(req.params.id);
+    const id = String(req.params.id);
     const parsed = updateIngredientSchema.safeParse(req.body);
     if (!parsed.success) {
         return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
@@ -73,7 +73,7 @@ export async function updateIngredient(req: Request, res: Response) {
     const [updated] = await db
         .update(Ingredients)
         .set(updateValues)
-        .where(and(eq(Ingredients.id, id), isNull(Ingredients.deleted_at)))
+        .where(and(eq(Ingredients.uuid, id), isNull(Ingredients.deleted_at)))
         .returning();
 
     if (!updated) {
@@ -83,12 +83,12 @@ export async function updateIngredient(req: Request, res: Response) {
 }
 
 export async function deleteIngredient(req: Request, res: Response) {
-    const id = Number(req.params.id);
+    const id = String(req.params.id);
 
     const [deleted] = await db
         .update(Ingredients)
         .set({ deleted_at: new Date() })
-        .where(and(eq(Ingredients.id, id), isNull(Ingredients.deleted_at)))
+        .where(and(eq(Ingredients.uuid, id), isNull(Ingredients.deleted_at)))
         .returning();
 
     if (!deleted) {
