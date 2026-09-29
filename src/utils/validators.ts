@@ -93,6 +93,11 @@ export const createOrderSchema = z.object({
     items: z.array(orderItemSchema).min(1, "At least one item is required"),
 });
 
+export const createPaymentSchema = z.object({
+    method: z.enum(["cash", "gcash", "card", "bank_transfer"], { message: "Invalid payment method" }),
+    amount_tendered: z.number().positive("amount_tendered must be greater than 0"),
+}); 
+
 export const updateCategorySchema = createCategorySchema.partial();
 export const updateProductSchema = createProductSchema.partial();
 export const updateIngredientSchema = createIngredientSchema.partial();
@@ -126,3 +131,5 @@ export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
+
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;

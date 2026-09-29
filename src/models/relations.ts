@@ -11,6 +11,7 @@ import { PurchaseOrders } from "./purchase_order.model";
 import { PurchaseOrderItems } from "./purchase_order_item.model";
 import { Orders } from "./order.model";
 import { OrderItems } from "./order_item.model";
+import { Payments } from "./payment.model";
 
 export const categoriesRelations = relations(Categories, ({ many }) => ({
     products: many(Products),
@@ -59,10 +60,15 @@ export const purchaseOrderItemsRelations = relations(PurchaseOrderItems, ({ one 
 export const ordersRelations = relations(Orders, ({ one, many }) => ({
     items: many(OrderItems),
     cashier: one(Users, { fields: [Orders.cashier_id], references: [Users.id] }),
+    payments: many(Payments),
 }));
 
 export const orderItemsRelations = relations(OrderItems, ({ one }) => ({
     order: one(Orders, { fields: [OrderItems.order_id], references: [Orders.id] }),
     product: one(Products, { fields: [OrderItems.product_id], references: [Products.id] }),
     variant: one(ProductVariants, { fields: [OrderItems.variant_id], references: [ProductVariants.id] }),
+}));
+
+export const paymentsRelations = relations(Payments, ({ one }) => ({
+    order: one(Orders, { fields: [Payments.order_id], references: [Orders.id] }),
 }));
