@@ -80,10 +80,26 @@ export const createPurchaseOrderSchema = z.object({
     items: z.array(purchaseOrderItemSchema).min(1, "At least one item is required"),
 });
 
+export const orderItemSchema = z.object({
+    product_id: z.number().int().positive("product_id is required"),
+    variant_id: z.number().int().positive().optional(),
+    quantity: z.number().int().positive("quantity must be at least 1").max(999),
+    notes: z.string().max(255).optional(),
+});
+
+export const createOrderSchema = z.object({
+    order_type: z.enum(["dine_in", "takeout"], { message: "order_type must be dine_in or takeout" }),
+    discount: z.number().nonnegative().default(0),
+    items: z.array(orderItemSchema).min(1, "At least one item is required"),
+});
+
 export const updateCategorySchema = createCategorySchema.partial();
 export const updateProductSchema = createProductSchema.partial();
 export const updateIngredientSchema = createIngredientSchema.partial();
 export const updateSupplierSchema = createSupplierSchema.partial();
+export const updateOrderStatusSchema = z.object({
+    status: z.enum(["preparing", "ready", "cancelled"], { message: "status must be preparing, ready or cancelled" }),
+}); 
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
@@ -107,3 +123,6 @@ export type CreateStockMovementInput = z.infer<typeof createStockMovementSchema>
 
 export type PurchaseOrderItemInput = z.infer<typeof purchaseOrderItemSchema>;
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
+
+export type CreateOrderInput = z.infer<typeof createOrderSchema>;
+export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;

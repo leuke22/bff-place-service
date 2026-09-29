@@ -9,6 +9,8 @@ import { Users } from "./user.model";
 import { Suppliers } from "./supplier.model";
 import { PurchaseOrders } from "./purchase_order.model";
 import { PurchaseOrderItems } from "./purchase_order_item.model";
+import { Orders } from "./order.model";
+import { OrderItems } from "./order_item.model";
 
 export const categoriesRelations = relations(Categories, ({ many }) => ({
     products: many(Products),
@@ -52,4 +54,15 @@ export const purchaseOrdersRelations = relations(PurchaseOrders, ({ one, many })
 export const purchaseOrderItemsRelations = relations(PurchaseOrderItems, ({ one }) => ({
     purchaseOrder: one(PurchaseOrders, { fields: [PurchaseOrderItems.purchase_order_id], references: [PurchaseOrders.id] }),
     ingredient: one(Ingredients, { fields: [PurchaseOrderItems.ingredient_id], references: [Ingredients.id] }),
+}));
+
+export const ordersRelations = relations(Orders, ({ one, many }) => ({
+    items: many(OrderItems),
+    cashier: one(Users, { fields: [Orders.cashier_id], references: [Users.id] }),
+}));
+
+export const orderItemsRelations = relations(OrderItems, ({ one }) => ({
+    order: one(Orders, { fields: [OrderItems.order_id], references: [Orders.id] }),
+    product: one(Products, { fields: [OrderItems.product_id], references: [Products.id] }),
+    variant: one(ProductVariants, { fields: [OrderItems.variant_id], references: [ProductVariants.id] }),
 }));
