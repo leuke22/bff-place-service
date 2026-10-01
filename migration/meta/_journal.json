@@ -36,6 +36,20 @@
       "when": 1790166709976,
       "tag": "0004_vengeful_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790859062785,
+      "tag": "0005_overconfident_gamora",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790860769949,
+      "tag": "0006_talented_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

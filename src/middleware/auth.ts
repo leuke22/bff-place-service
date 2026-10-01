@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyAccessToken } from "../utils/jwt";
+import { verifyAccessToken, UserRole } from "../utils/jwt";
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.headers.authorization;
@@ -17,4 +17,14 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     } catch (err) {
         return res.status(401).json({ message: "Invalid or expired token" });
     }
+}
+
+// Use after requireAuth. Any authenticated role not in the allow-list gets a 403.
+export function requireRole(...roles: UserRole[]) {
+    return (req: Request, res: Response, next: NextFunction) => {
+        if (!req.user || !roles.includes(req.user.role)) {
+            return res.status(403).json({ message: "You do not have permission to perform this action" });
+        }
+        next();
+    };
 }

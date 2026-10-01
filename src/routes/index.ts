@@ -7,6 +7,7 @@ import supplierRoutes from "./supplier.route";
 import stockMovementRoutes from "./stock_movement.route";
 import purchaseOrderRoutes from "./purchase_order.route";
 import orderRoutes from "./order.route";
+import shiftRoutes from "./shift.route";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use("/suppliers", supplierRoutes);
 router.use("/stock-movements", stockMovementRoutes);
 router.use("/purchase-orders", purchaseOrderRoutes);
 router.use("/orders", orderRoutes);
+router.use("/shifts", shiftRoutes);
 
 export default router;

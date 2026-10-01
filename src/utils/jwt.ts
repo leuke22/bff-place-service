@@ -1,9 +1,12 @@
 import jwt, { SignOptions } from "jsonwebtoken";
 import { env } from "../env";
 
+export type UserRole = "admin" | "manager" | "cashier";
+
 export interface JwtPayload {
     user_id: number;
     email: string;
+    role: UserRole;
 }
 
 export function signAccessToken(payload: JwtPayload): string {

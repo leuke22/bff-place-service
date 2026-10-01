@@ -98,6 +98,14 @@ export const createPaymentSchema = z.object({
     amount_tendered: z.number().positive("amount_tendered must be greater than 0"),
 }); 
 
+export const openShiftSchema = z.object({
+    opening_cash: z.number().nonnegative("opening_cash must be 0 or more"),
+});
+
+export const closeShiftSchema = z.object({
+    closing_cash: z.number().nonnegative("closing_cash must be 0 or more"),
+});
+
 export const updateCategorySchema = createCategorySchema.partial();
 export const updateProductSchema = createProductSchema.partial();
 export const updateIngredientSchema = createIngredientSchema.partial();
@@ -133,3 +141,6 @@ export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+
+export type OpenShiftInput = z.infer<typeof openShiftSchema>;
+export type CloseShiftInput = z.infer<typeof closeShiftSchema>;

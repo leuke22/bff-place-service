@@ -1,5 +1,4 @@
 import { pgTable, serial, varchar, timestamp, integer, numeric, uuid, pgEnum } from "drizzle-orm/pg-core";
-import { Tables } from "./table.model";
 import { Users } from "./user.model";
 
 export const orderTypeEnum = pgEnum("order_type", ["dine_in", "takeout"]);
@@ -10,7 +9,6 @@ export const Orders = pgTable("Orders", {
     uuid: uuid("uuid").defaultRandom(),
     order_number: varchar("order_number", { length: 50 }).notNull(),
     order_type: orderTypeEnum("order_type").notNull(),
-    table_id: integer("table_id").references(() => Tables.id, { onDelete: "set null" }),
     status: orderStatusEnum("status").default("pending").notNull(),
     subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
     discount: numeric("discount", { precision: 12, scale: 2 }).default("0").notNull(),

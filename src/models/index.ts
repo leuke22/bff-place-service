@@ -9,7 +9,6 @@ export * from "./stock_movement.model";
 export * from "./supplier.model";
 export * from "./purchase_order.model";
 export * from "./purchase_order_item.model";
-export * from "./table.model";
 export * from "./order.model";
 export * from "./order_item.model";
 export * from "./payment.model";

@@ -2,14 +2,13 @@ import { Request, Response } from "express";
 import { eq, and, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { Orders, OrderItems, Products, ProductVariants } from "../models";
+import { Orders, OrderItems, Products, ProductVariants, Shifts } from "../models";
 import { createOrderSchema, updateOrderStatusSchema } from "../utils/validators";
 import { DataResponse, ListResponse } from "../utils/responseHelper";
 
 const ORDER_STATUSES = ["pending", "preparing", "ready", "completed", "cancelled"] as const;
 type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-// "completed" is intentionally absent: it will be reached through payment (next step).
 const ALLOWED_TRANSITIONS: Record<OrderStatus, string[]> = {
     pending: ["preparing", "cancelled"],
     preparing: ["ready", "cancelled"],
@@ -28,6 +27,15 @@ export async function createOrder(req: Request, res: Response) {
     }
     const { order_type, discount, items } = parsed.data;
     const cashierId = req.user!.user_id;
+
+    // A cashier must have clocked into the register before ringing anything up —
+    // otherwise cash taken during the day has nothing to reconcile against at close-out.
+    const openShift = await db.query.Shifts.findFirst({
+        where: and(eq(Shifts.cashier_id, cashierId), isNull(Shifts.closed_at)),
+    });
+    if (!openShift) {
+        return res.status(400).json({ message: "You must open a shift before taking orders" });
+    }
 
     const productIds = [...new Set(items.map((i) => i.product_id))];
     const products = await db.query.Products.findMany({
@@ -95,7 +103,7 @@ export async function createOrder(req: Request, res: Response) {
         const [created] = await tx
             .insert(Orders)
             .values({
-                order_number: "PENDING", // replaced below once we have the id
+                order_number: "PENDING",
                 order_type,
                 subtotal: fromCents(subtotalCents),
                 discount: fromCents(discountCents),
@@ -104,7 +112,6 @@ export async function createOrder(req: Request, res: Response) {
             })
             .returning();
 
-        // Deriving the number from the serial id avoids duplicate numbers under concurrent orders.
         const [numbered] = await tx
             .update(Orders)
             .set({ order_number: `ORD-${String(created.id).padStart(6, "0")}` })
@@ -175,7 +182,6 @@ export async function updateOrderStatus(req: Request, res: Response) {
         return res.status(400).json({ message: `Cannot change an order from "${order.status}" to "${status}"` });
     }
 
-    // Guarding on the current status stops two people from applying conflicting changes at once.
     const [updated] = await db
         .update(Orders)
         .set({ status, updated_at: new Date() })

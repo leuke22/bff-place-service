@@ -26,13 +26,15 @@ export async function register(req: Request, res: Response) {
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
+    // role is never taken from the request body — it always falls back to the DB
+    // default ("cashier"). Promoting someone to manager/admin is a manual step for now.
     const [newUser] = await db
         .insert(Users)
         .values({ first_name, middle_name, last_name, email, password: hashedPassword, is_active: true })
-        .returning({ id: Users.id, uuid: Users.uuid, first_name: Users.first_name, email: Users.email });
+        .returning({ id: Users.id, uuid: Users.uuid, first_name: Users.first_name, email: Users.email, role: Users.role });
 
-    const accessToken = signAccessToken({ user_id: newUser.id, email: newUser.email });
-    const refreshToken = signRefreshToken({ user_id: newUser.id, email: newUser.email });
+    const accessToken = signAccessToken({ user_id: newUser.id, email: newUser.email, role: newUser.role });
+    const refreshToken = signRefreshToken({ user_id: newUser.id, email: newUser.email, role: newUser.role });
 
     await storeRefreshToken(newUser.id, refreshToken);
 
@@ -56,8 +58,8 @@ export async function login(req: Request, res: Response) {
         return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const accessToken = signAccessToken({ user_id: user.id, email: user.email });
-    const refreshToken = signRefreshToken({ user_id: user.id, email: user.email });
+    const accessToken = signAccessToken({ user_id: user.id, email: user.email, role: user.role });
+    const refreshToken = signRefreshToken({ user_id: user.id, email: user.email, role: user.role });
 
     await storeRefreshToken(user.id, refreshToken);
 
@@ -70,7 +72,7 @@ export async function login(req: Request, res: Response) {
     });
 
     return res.json({
-        user: { id: user.id, uuid: user.uuid, first_name: user.first_name, email: user.email },
+        user: { id: user.id, uuid: user.uuid, first_name: user.first_name, email: user.email, role: user.role },
         access_token: accessToken
     });
 }
@@ -93,7 +95,7 @@ export async function refresh(req: Request, res: Response) {
             return res.status(401).json({ message: "Refresh token not recognized or has been revoked" });
         }
 
-        const accessToken = signAccessToken({ user_id: payload.user_id, email: payload.email });
+        const accessToken = signAccessToken({ user_id: payload.user_id, email: payload.email, role: payload.role });
         return res.json({ access_token: accessToken });
     } catch {
         return res.status(401).json({ message: "Invalid or expired refresh token" });
@@ -120,7 +122,7 @@ export async function me(req: Request, res: Response) {
 
     const user = await db.query.Users.findFirst({
         where: eq(Users.id, userId),
-        columns: { id: true, uuid: true, first_name: true, last_name: true, email: true, avatar: true, created_at: true },
+        columns: { id: true, uuid: true, first_name: true, last_name: true, email: true, avatar: true, role: true, created_at: true },
     });
 
     if (!user) {
