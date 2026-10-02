@@ -28,8 +28,6 @@ export async function createOrder(req: Request, res: Response) {
     const { order_type, discount, items } = parsed.data;
     const cashierId = req.user!.user_id;
 
-    // A cashier must have clocked into the register before ringing anything up —
-    // otherwise cash taken during the day has nothing to reconcile against at close-out.
     const openShift = await db.query.Shifts.findFirst({
         where: and(eq(Shifts.cashier_id, cashierId), isNull(Shifts.closed_at)),
     });
@@ -141,6 +139,7 @@ export async function listOrders(req: Request, res: Response) {
             limit,
             with: {
                 items: { with: { product: { columns: { id: true, name: true } } } },
+                payments: true,
             },
         }),
         db.select({ count: sql<number>`count(*)` }).from(Orders).where(where),
@@ -157,6 +156,7 @@ export async function getOrder(req: Request, res: Response) {
         with: {
             items: { with: { product: { columns: { id: true, name: true, image: true } } } },
             cashier: { columns: { id: true, first_name: true, last_name: true } },
+            payments: true,
         },
     });
 
