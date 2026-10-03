@@ -2,9 +2,16 @@ import { Request, Response } from "express";
 import { eq, isNull, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { Ingredients } from "../models";
+import { Ingredients, Units } from "../models";
 import { createIngredientSchema, updateIngredientSchema } from "../utils/validators";
 import { DataResponse, ListResponse } from "../utils/responseHelper";
+
+async function unitExists(symbol: string) {
+    const unit = await db.query.Units.findFirst({
+        where: and(eq(Units.symbol, symbol), isNull(Units.deleted_at), eq(Units.is_active, true)),
+    });
+    return !!unit;
+}
 
 export async function createIngredient(req: Request, res: Response) {
     const parsed = createIngredientSchema.safeParse(req.body);
@@ -12,6 +19,10 @@ export async function createIngredient(req: Request, res: Response) {
         return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
     }
     const { name, unit, image, current_stock, reorder_level } = parsed.data;
+
+    if (!(await unitExists(unit))) {
+        return res.status(400).json({ message: `Unit "${unit}" does not exist or is inactive. Add it under Inventory → Units first.` });
+    }
 
     const [ingredient] = await db
         .insert(Ingredients)
@@ -63,6 +74,10 @@ export async function updateIngredient(req: Request, res: Response) {
     const parsed = updateIngredientSchema.safeParse(req.body);
     if (!parsed.success) {
         return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
+    }
+
+    if (parsed.data.unit && !(await unitExists(parsed.data.unit))) {
+        return res.status(400).json({ message: `Unit "${parsed.data.unit}" does not exist or is inactive. Add it under Inventory → Units first.` });
     }
 
     const { current_stock, reorder_level, ...rest } = parsed.data;

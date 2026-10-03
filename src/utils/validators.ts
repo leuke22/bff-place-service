@@ -36,7 +36,7 @@ export const createProductSchema = z.object({
 
 export const createIngredientSchema = z.object({
     name: z.string().min(1, "Name is required").max(150),
-    unit: z.enum(["kg", "g", "L", "ml", "pcs"], { message: "unit must be one of kg, g, L, ml, pcs" }),
+    unit: z.string().min(1, "Unit is required").max(20),
     image: z.string().max(255).optional(),
     current_stock: z.number().nonnegative().default(0),
     reorder_level: z.number().nonnegative().default(0),
@@ -136,6 +136,12 @@ export const changePasswordSchema = z.object({
     new_password: z.string().min(8, "New password must be at least 8 characters"),
 });
 
+export const createUnitSchema = z.object({
+    name: z.string().min(1, "Name is required").max(50),
+    symbol: z.string().min(1, "Symbol is required").max(10),
+    is_active: z.boolean().optional(),
+});
+
 export const updateCategorySchema = createCategorySchema.partial();
 export const updateProductSchema = createProductSchema.partial();
 export const updateIngredientSchema = createIngredientSchema.partial();
@@ -143,6 +149,9 @@ export const updateSupplierSchema = createSupplierSchema.partial();
 export const updateOrderStatusSchema = z.object({
     status: z.enum(["preparing", "ready", "cancelled"], { message: "status must be preparing, ready or cancelled" }),
 });
+
+export const updateUnitSchema = createUnitSchema.partial();
+
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
@@ -180,3 +189,6 @@ export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+export type CreateUnitInput = z.infer<typeof createUnitSchema>;
+export type UpdateUnitInput = z.infer<typeof updateUnitSchema>;

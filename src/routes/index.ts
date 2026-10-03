@@ -9,6 +9,7 @@ import purchaseOrderRoutes from "./purchase_order.route";
 import orderRoutes from "./order.route";
 import shiftRoutes from "./shift.route";
 import staffRoutes from "./staff.route";
+import unitRoutes from "./unit.route";
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use("/purchase-orders", purchaseOrderRoutes);
 router.use("/orders", orderRoutes);
 router.use("/shifts", shiftRoutes);
 router.use("/staff", staffRoutes);
+router.use("/units", unitRoutes);
 
 export default router;

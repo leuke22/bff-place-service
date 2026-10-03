@@ -13,5 +13,6 @@ export * from "./order.model";
 export * from "./order_item.model";
 export * from "./payment.model";
 export * from "./shift.model";
+export * from "./unit.model";
 
 export * from "./relations";
