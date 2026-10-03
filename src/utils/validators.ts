@@ -96,7 +96,7 @@ export const createOrderSchema = z.object({
 export const createPaymentSchema = z.object({
     method: z.enum(["cash", "gcash", "card", "bank_transfer"], { message: "Invalid payment method" }),
     amount_tendered: z.number().positive("amount_tendered must be greater than 0"),
-}); 
+});
 
 export const openShiftSchema = z.object({
     opening_cash: z.number().nonnegative("opening_cash must be 0 or more"),
@@ -106,13 +106,43 @@ export const closeShiftSchema = z.object({
     closing_cash: z.number().nonnegative("closing_cash must be 0 or more"),
 });
 
+export const createStaffSchema = z.object({
+    first_name: z.string().min(1, "First name is required").max(100),
+    middle_name: z.string().max(100).optional(),
+    last_name: z.string().min(1, "Last name is required").max(100),
+    email: z.email("Invalid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    role: z.enum(["admin", "manager", "cashier"], { message: "role must be admin, manager or cashier" }),
+});
+
+export const updateStaffSchema = z.object({
+    first_name: z.string().min(1).max(100).optional(),
+    middle_name: z.string().max(100).optional(),
+    last_name: z.string().min(1).max(100).optional(),
+    role: z.enum(["admin", "manager", "cashier"]).optional(),
+    is_active: z.boolean().optional(),
+});
+
+export const updateProfileSchema = z.object({
+    first_name: z.string().min(1).max(100).optional(),
+    middle_name: z.string().max(100).optional(),
+    last_name: z.string().min(1).max(100).optional(),
+    email: z.email("Invalid email address").optional(),
+    avatar: z.string().max(255).optional(),
+});
+
+export const changePasswordSchema = z.object({
+    current_password: z.string().min(1, "Current password is required"),
+    new_password: z.string().min(8, "New password must be at least 8 characters"),
+});
+
 export const updateCategorySchema = createCategorySchema.partial();
 export const updateProductSchema = createProductSchema.partial();
 export const updateIngredientSchema = createIngredientSchema.partial();
 export const updateSupplierSchema = createSupplierSchema.partial();
 export const updateOrderStatusSchema = z.object({
     status: z.enum(["preparing", "ready", "cancelled"], { message: "status must be preparing, ready or cancelled" }),
-}); 
+});
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
@@ -144,3 +174,9 @@ export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
 export type OpenShiftInput = z.infer<typeof openShiftSchema>;
 export type CloseShiftInput = z.infer<typeof closeShiftSchema>;
+
+export type CreateStaffInput = z.infer<typeof createStaffSchema>;
+export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

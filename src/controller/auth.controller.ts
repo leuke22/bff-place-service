@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, ne, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { Users, RefreshTokens } from "../models";
-import { registerSchema, loginSchema, refreshSchema } from "../utils/validators";
+import { registerSchema, loginSchema, refreshSchema, updateProfileSchema, changePasswordSchema } from "../utils/validators";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt";
 import { hashToken } from "../utils/hash";
 import z from "zod";
@@ -27,7 +27,7 @@ export async function register(req: Request, res: Response) {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // role is never taken from the request body — it always falls back to the DB
-    // default ("cashier"). Promoting someone to manager/admin is a manual step for now.
+    // default ("cashier"). Promoting someone to manager/admin is done via Staff Management.
     const [newUser] = await db
         .insert(Users)
         .values({ first_name, middle_name, last_name, email, password: hashedPassword, is_active: true })
@@ -122,7 +122,7 @@ export async function me(req: Request, res: Response) {
 
     const user = await db.query.Users.findFirst({
         where: eq(Users.id, userId),
-        columns: { id: true, uuid: true, first_name: true, last_name: true, email: true, avatar: true, role: true, created_at: true },
+        columns: { id: true, uuid: true, first_name: true, middle_name: true, last_name: true, email: true, avatar: true, role: true, created_at: true },
     });
 
     if (!user) {
@@ -130,6 +130,57 @@ export async function me(req: Request, res: Response) {
     }
 
     return res.json({ user });
+}
+
+export async function updateProfile(req: Request, res: Response) {
+    const userId = req.user!.user_id;
+    const parsed = updateProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
+    }
+
+    if (parsed.data.email) {
+        const existing = await db.query.Users.findFirst({
+            where: and(eq(Users.email, parsed.data.email), ne(Users.id, userId)),
+        });
+        if (existing) {
+            return res.status(409).json({ message: "Email is already in use" });
+        }
+    }
+
+    const [updated] = await db
+        .update(Users)
+        .set({ ...parsed.data, updated_at: new Date() })
+        .where(eq(Users.id, userId))
+        .returning({
+            id: Users.id, uuid: Users.uuid, first_name: Users.first_name, middle_name: Users.middle_name,
+            last_name: Users.last_name, email: Users.email, avatar: Users.avatar, role: Users.role, created_at: Users.created_at,
+        });
+
+    return res.json({ user: updated });
+}
+
+export async function changePassword(req: Request, res: Response) {
+    const userId = req.user!.user_id;
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
+    }
+
+    const user = await db.query.Users.findFirst({ where: eq(Users.id, userId) });
+    if (!user) {
+        return res.status(404).json({ message: "User not found" });
+    }
+
+    const isValid = await bcrypt.compare(parsed.data.current_password, user.password);
+    if (!isValid) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    const hashedPassword = await bcrypt.hash(parsed.data.new_password, SALT_ROUNDS);
+    await db.update(Users).set({ password: hashedPassword, updated_at: new Date() }).where(eq(Users.id, userId));
+
+    return res.status(204).send();
 }
 
 async function storeRefreshToken(userId: number, token: string) {
