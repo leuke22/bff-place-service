@@ -10,9 +10,9 @@ const ORDER_STATUSES = ["pending", "preparing", "ready", "completed", "cancelled
 type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 const ALLOWED_TRANSITIONS: Record<OrderStatus, string[]> = {
-    pending: ["preparing", "cancelled"],
+    pending: ["cancelled"],
     preparing: ["ready", "cancelled"],
-    ready: ["cancelled"],
+    ready: ["completed", "cancelled"],
     completed: [],
     cancelled: [],
 };

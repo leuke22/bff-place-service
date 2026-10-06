@@ -6,7 +6,9 @@ import { Orders, Payments, ProductIngredients, Ingredients, StockMovements } fro
 import { createPaymentSchema } from "../utils/validators";
 import { DataResponse } from "../utils/responseHelper";
 
-const ACTIVE_STATUSES = ["pending", "preparing", "ready"] as const;
+// Payment is what authorizes the kitchen to start — it's only valid on a freshly
+// placed order, and it's what moves the order into "preparing", not "completed".
+const ACTIVE_STATUSES = ["pending"] as const;
 
 export async function payOrder(req: Request, res: Response) {
     const uuid = req.params.id as string;
@@ -17,9 +19,6 @@ export async function payOrder(req: Request, res: Response) {
     const { method, amount_tendered } = parsed.data;
     const userId = req.user!.user_id;
 
-    // Only cash is wired up for now. The other enum values already exist on the schema so
-    // the API contract and UI won't need to change again once a payment gateway is added —
-    // this check is the only thing to remove at that point.
     if (method !== "cash") {
         return res.status(400).json({
             message: "Online payment methods are not available yet. A payment gateway integration is coming soon — please use cash for now.",
@@ -55,7 +54,6 @@ export async function payOrder(req: Request, res: Response) {
                 })
                 .returning();
 
-            // Deduct ingredient stock from every order item's recipe
             const productIds = [...new Set(order.items.map((i) => i.product_id))];
             const recipeRows = productIds.length
                 ? await tx.query.ProductIngredients.findMany({
@@ -76,12 +74,10 @@ export async function payOrder(req: Request, res: Response) {
 
             for (const [ingredientId, quantityNeeded] of requiredByIngredient) {
                 const ingredient = await tx.query.Ingredients.findFirst({ where: eq(Ingredients.id, ingredientId) });
-                if (!ingredient) continue; // recipe points at a deleted ingredient — skip rather than fail the sale
+                if (!ingredient) continue;
 
-                // Allowed to go negative: the food has already been made and served by the time
-                // payment happens, so this must reflect what was actually used, even if that reveals
-                // a shortfall. Manual "out" movements (entered directly by staff) stay blocked from
-                // going negative in stock_movement.controller.ts — this is the one deliberate exception.
+                // Deduction still happens at payment time, not at "completed" — once paid,
+                // the kitchen is committed to using these ingredients to prepare the order.
                 const newStock = Number(ingredient.current_stock) - quantityNeeded;
 
                 await tx.insert(StockMovements).values({
@@ -102,7 +98,7 @@ export async function payOrder(req: Request, res: Response) {
 
             const [updatedOrder] = await tx
                 .update(Orders)
-                .set({ status: "completed", updated_at: new Date() })
+                .set({ status: "preparing", updated_at: new Date() })
                 .where(eq(Orders.id, order.id))
                 .returning();
 

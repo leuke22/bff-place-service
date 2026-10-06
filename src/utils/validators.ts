@@ -147,7 +147,7 @@ export const updateProductSchema = createProductSchema.partial();
 export const updateIngredientSchema = createIngredientSchema.partial();
 export const updateSupplierSchema = createSupplierSchema.partial();
 export const updateOrderStatusSchema = z.object({
-    status: z.enum(["preparing", "ready", "cancelled"], { message: "status must be preparing, ready or cancelled" }),
+    status: z.enum(["ready", "completed", "cancelled"], { message: "status must be ready, completed or cancelled" }),
 });
 
 export const updateUnitSchema = createUnitSchema.partial();

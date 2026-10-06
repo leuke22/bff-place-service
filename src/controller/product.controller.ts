@@ -45,7 +45,7 @@ export async function listProducts(req: Request, res: Response) {
                 price: Products.price,
                 category_id: Products.category_id,
             },
-            allowedRelations: ["category", "variants"],
+            allowedRelations: ["category", "variants", "ingredients"],
             baseWhere,
             defaultOrderBy: [asc(Products.name)],
         }
