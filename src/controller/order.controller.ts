@@ -154,7 +154,12 @@ export async function getOrder(req: Request, res: Response) {
     const order = await db.query.Orders.findFirst({
         where: eq(Orders.uuid, uuid),
         with: {
-            items: { with: { product: { columns: { id: true, name: true, image: true } } } },
+            items: {
+                with: {
+                    product: { columns: { id: true, name: true, image: true } },
+                    variant: { columns: { id: true, name: true } },
+                },
+            },
             cashier: { columns: { id: true, first_name: true, last_name: true } },
             payments: true,
         },
