@@ -76,19 +76,15 @@ export async function listPurchaseOrders(req: Request, res: Response) {
 }
 
 export async function getPurchaseOrder(req: Request, res: Response) {
-    const uuid = req.params.id as string;
-
     const purchaseOrder = await db.query.PurchaseOrders.findFirst({
-        where: eq(PurchaseOrders.uuid, uuid),
+        where: eq(PurchaseOrders.uuid, req.params.id as string),
         with: {
             supplier: true,
+            orderedByUser: { columns: { first_name: true, last_name: true } },
             items: { with: { ingredient: true } },
         },
     });
-
-    if (!purchaseOrder) {
-        return res.status(404).json({ message: "Purchase order not found" });
-    }
+    if (!purchaseOrder) return res.status(404).json({ message: "Purchase order not found" });
     return DataResponse(res, purchaseOrder);
 }
 

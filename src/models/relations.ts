@@ -50,6 +50,7 @@ export const suppliersRelations = relations(Suppliers, ({ many }) => ({
 
 export const purchaseOrdersRelations = relations(PurchaseOrders, ({ one, many }) => ({
     supplier: one(Suppliers, { fields: [PurchaseOrders.supplier_id], references: [Suppliers.id] }),
+    orderedByUser: one(Users, { fields: [PurchaseOrders.ordered_by], references: [Users.id] }),
     items: many(PurchaseOrderItems),
 }));
 
