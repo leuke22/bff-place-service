@@ -114,6 +114,16 @@ export const closeShiftSchema = z.object({
     closing_cash: z.number().nonnegative("closing_cash must be 0 or more"),
 });
 
+export const listShiftsQuerySchema = z.object({
+    date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date_from must be YYYY-MM-DD").optional(),
+    date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date_to must be YYYY-MM-DD").optional(),
+    cashier_id: z.coerce.number().int().positive().optional(),
+    status: z.enum(["all", "open", "balanced", "variance"]).default("all"),
+    search: z.string().trim().max(100).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(10),
+});
+
 export const createStaffSchema = z.object({
     first_name: z.string().min(1, "First name is required").max(100),
     middle_name: z.string().max(100).optional(),
@@ -196,6 +206,7 @@ export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
 export type OpenShiftInput = z.infer<typeof openShiftSchema>;
+export type ListShiftsQuery = z.infer<typeof listShiftsQuerySchema>;
 export type CloseShiftInput = z.infer<typeof closeShiftSchema>;
 
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
