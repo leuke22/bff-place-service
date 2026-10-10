@@ -26,13 +26,21 @@ export const createCategorySchema = z.object({
     image: z.string().max(255).optional(),
 });
 
-export const createProductSchema = z.object({
-    category_id: z.number().int().positive("category_id is required"),
+const productFields = {
+    category_ids: z.array(z.number().int().positive()).min(1, "Select at least one category").refine(
+        (ids) => new Set(ids).size === ids.length,
+        "Categories must be unique",
+    ).optional(),
     name: z.string().min(1, "Name is required").max(150),
     description: z.string().optional(),
     price: z.number().positive("Price must be greater than 0"),
     image: z.string().max(255).optional(),
-});
+};
+
+export const createProductSchema = z.object(productFields).refine(
+    (product) => Boolean(product.category_ids?.length),
+    { path: ["category_ids"], message: "Select at least one category" },
+);
 
 export const createIngredientSchema = z.object({
     name: z.string().min(1, "Name is required").max(150),
@@ -143,7 +151,13 @@ export const createUnitSchema = z.object({
 });
 
 export const updateCategorySchema = createCategorySchema.partial();
-export const updateProductSchema = createProductSchema.partial();
+export const updateProductSchema = z.object({
+    ...productFields,
+    name: productFields.name.optional(),
+    description: productFields.description.optional(),
+    price: productFields.price.optional(),
+    image: productFields.image.optional(),
+});
 export const updateIngredientSchema = createIngredientSchema.partial();
 export const updateSupplierSchema = createSupplierSchema.partial();
 export const updateOrderStatusSchema = z.object({

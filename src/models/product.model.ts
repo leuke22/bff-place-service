@@ -1,10 +1,8 @@
-import { pgTable, serial, varchar, timestamp, uuid, boolean, integer, numeric, text } from "drizzle-orm/pg-core";
-import { Categories } from "./category.model";
+import { pgTable, serial, varchar, timestamp, uuid, boolean, numeric, text } from "drizzle-orm/pg-core";
 
 export const Products = pgTable("Products", {
     id: serial("id").primaryKey(),
     uuid: uuid("uuid").defaultRandom(),
-    category_id: integer("category_id").notNull().references(() => Categories.id, { onDelete: "restrict" }),
     name: varchar("name", { length: 150 }).notNull(),
     description: text("description"),
     price: numeric("price", { precision: 10, scale: 2 }).notNull(),

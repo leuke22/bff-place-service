@@ -2,6 +2,7 @@ export * from "./user.model";
 export * from "./refresh_token.model";
 export * from "./category.model";
 export * from "./product.model";
+export * from "./product_category.model";
 export * from "./product_variant.model";
 export * from "./ingredient.model";
 export * from "./product_ingredient.model";

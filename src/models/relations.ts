@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import { Products } from "./product.model";
+import { ProductCategories } from "./product_category.model";
 import { ProductVariants } from "./product_variant.model";
 import { ProductIngredients } from "./product_ingredient.model";
 import { Categories } from "./category.model";
@@ -15,11 +16,11 @@ import { Payments } from "./payment.model";
 import { Shifts } from "./shift.model";
 
 export const categoriesRelations = relations(Categories, ({ many }) => ({
-    products: many(Products),
+    productLinks: many(ProductCategories),
 }));
 
 export const productsRelations = relations(Products, ({ one, many }) => ({
-    category: one(Categories, { fields: [Products.category_id], references: [Categories.id] }),
+    categoryLinks: many(ProductCategories),
     variants: many(ProductVariants),
     ingredients: many(ProductIngredients),
 }));
@@ -77,4 +78,9 @@ export const paymentsRelations = relations(Payments, ({ one }) => ({
 
 export const shiftsRelations = relations(Shifts, ({ one }) => ({
     cashier: one(Users, { fields: [Shifts.cashier_id], references: [Users.id] }),
+}));
+
+export const productCategoriesRelations = relations(ProductCategories, ({ one }) => ({
+    product: one(Products, { fields: [ProductCategories.product_id], references: [Products.id] }),
+    category: one(Categories, { fields: [ProductCategories.category_id], references: [Categories.id] }),
 }));

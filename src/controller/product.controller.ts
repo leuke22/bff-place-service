@@ -1,39 +1,85 @@
 import { Request, Response } from "express";
-import { eq, isNull, and, asc, sql } from "drizzle-orm";
+import { eq, isNull, and, asc, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { Products, Categories } from "../models";
+import { Products, Categories, ProductCategories } from "../models";
 import { createProductSchema, updateProductSchema } from "../utils/validators";
 import { buildQueryOptions } from "../utils/queryHelper";
 import { DataResponse, ListResponse } from "../utils/responseHelper";
+
+async function includeProductCategories<T extends { id: number }>(products: T[]) {
+    if (!products.length) return products.map((product) => ({ ...product, categories: [] }));
+
+    const links = await db.select({
+        product_id: ProductCategories.product_id,
+        category: Categories,
+    })
+        .from(ProductCategories)
+        .innerJoin(Categories, eq(ProductCategories.category_id, Categories.id))
+        .where(and(
+            inArray(ProductCategories.product_id, products.map((product) => product.id)),
+            isNull(Categories.deleted_at),
+        ));
+
+    const categoriesByProduct = new Map<number, (typeof links)[number]["category"][]>();
+    for (const link of links) {
+        const categories = categoriesByProduct.get(link.product_id) ?? [];
+        categories.push(link.category);
+        categoriesByProduct.set(link.product_id, categories);
+    }
+
+    return products.map((product) => ({
+        ...product,
+        categories: categoriesByProduct.get(product.id) ?? [],
+    }));
+}
+
+async function categoriesExist(categoryIds: number[]) {
+    const categories = await db.query.Categories.findMany({
+        where: and(inArray(Categories.id, categoryIds), isNull(Categories.deleted_at)),
+        columns: { id: true },
+    });
+    return categories.length === categoryIds.length;
+}
 
 export async function createProduct(req: Request, res: Response) {
     const parsed = createProductSchema.safeParse(req.body);
     if (!parsed.success) {
         return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
     }
-    const { category_id, name, description, price, image } = parsed.data;
-
-    const category = await db.query.Categories.findFirst({
-        where: and(eq(Categories.id, category_id), isNull(Categories.deleted_at)),
-    });
-    if (!category) {
-        return res.status(400).json({ message: "category_id does not reference an existing category" });
+    const categoryIds = parsed.data.category_ids!;
+    if (!(await categoriesExist(categoryIds))) {
+        return res.status(400).json({ message: "One or more categories do not exist or are deleted" });
     }
 
-    const [product] = await db
-        .insert(Products)
-        .values({ category_id, name, description, price: price.toFixed(2), image })
-        .returning();
+    const { name, description, price, image } = parsed.data;
+    const product = await db.transaction(async (tx) => {
+        const [created] = await tx
+            .insert(Products)
+            .values({ name, description, price: price.toFixed(2), image })
+            .returning();
 
-    return DataResponse(res, product, 201);
+        await tx.insert(ProductCategories).values(categoryIds.map((category_id) => ({
+            product_id: created.id,
+            category_id,
+        })));
+        return created;
+    });
+
+    const [productWithCategories] = await includeProductCategories([product]);
+    return DataResponse(res, productWithCategories, 201);
 }
 
 export async function listProducts(req: Request, res: Response) {
     const categoryId = req.query.category_id ? Number(req.query.category_id) : undefined;
 
     const baseWhere = categoryId
-        ? and(eq(Products.category_id, categoryId), isNull(Products.deleted_at))
+        ? and(inArray(
+            Products.id,
+            db.select({ product_id: ProductCategories.product_id })
+                .from(ProductCategories)
+                .where(eq(ProductCategories.category_id, categoryId)),
+        ), isNull(Products.deleted_at))
         : isNull(Products.deleted_at);
 
     const { where, orderBy, limit, offset, with: withRelations, page } = buildQueryOptions(
@@ -43,9 +89,8 @@ export async function listProducts(req: Request, res: Response) {
                 name: Products.name,
                 description: Products.description,
                 price: Products.price,
-                category_id: Products.category_id,
             },
-            allowedRelations: ["category", "variants", "ingredients"],
+            allowedRelations: ["variants", "ingredients"],
             baseWhere,
             defaultOrderBy: [asc(Products.name)],
         }
@@ -56,7 +101,7 @@ export async function listProducts(req: Request, res: Response) {
         db.select({ count: sql<number>`count(*)` }).from(Products).where(where),
     ]);
 
-    return ListResponse(res, products, Number(count))
+    return ListResponse(res, await includeProductCategories(products), Number(count))
 }
 
 export async function getProduct(req: Request, res: Response) {
@@ -66,14 +111,14 @@ export async function getProduct(req: Request, res: Response) {
         where: and(eq(Products.uuid, id), isNull(Products.deleted_at)),
         with: {
             variants: true,
-            category: true
         },
     });
 
     if (!product) {
         return res.status(404).json({ message: "Product not found" });
     }
-    return DataResponse(res, product);
+    const [productWithCategories] = await includeProductCategories([product]);
+    return DataResponse(res, productWithCategories);
 }
 
 export async function updateProduct(req: Request, res: Response) {
@@ -83,22 +128,39 @@ export async function updateProduct(req: Request, res: Response) {
         return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
     }
 
-    const { price, ...rest } = parsed.data;
+    const { category_ids, price, ...rest } = parsed.data;
+    const selectedCategoryIds = category_ids;
+    if (selectedCategoryIds && !(await categoriesExist(selectedCategoryIds))) {
+        return res.status(400).json({ message: "One or more categories do not exist or are deleted" });
+    }
+
     const updateValues: Record<string, unknown> = { ...rest, updated_at: new Date() };
     if (price !== undefined) {
         updateValues.price = price.toFixed(2);
     }
 
-    const [updated] = await db
-        .update(Products)
-        .set(updateValues)
-        .where(and(eq(Products.id, id), isNull(Products.deleted_at)))
-        .returning();
+    const updated = await db.transaction(async (tx) => {
+        const [product] = await tx
+            .update(Products)
+            .set(updateValues)
+            .where(and(eq(Products.id, id), isNull(Products.deleted_at)))
+            .returning();
+
+        if (!product || !selectedCategoryIds) return product;
+
+        await tx.delete(ProductCategories).where(eq(ProductCategories.product_id, id));
+        await tx.insert(ProductCategories).values(selectedCategoryIds.map((category_id) => ({
+            product_id: id,
+            category_id,
+        })));
+        return product;
+    });
 
     if (!updated) {
         return res.status(404).json({ message: "Product not found" });
     }
-    return DataResponse(res, updated);
+    const [productWithCategories] = await includeProductCategories([updated]);
+    return DataResponse(res, productWithCategories);
 }
 
 export async function deleteProduct(req: Request, res: Response) {

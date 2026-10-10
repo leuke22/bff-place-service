@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { eq, isNull, and, sql, asc } from "drizzle-orm";
+import { eq, isNull, and, or, ilike, sql, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { Categories, Products } from "../models";
+import { Categories, Products, ProductCategories } from "../models";
 import { createCategorySchema, updateCategorySchema } from "../utils/validators";
 import { DataResponse, ListResponse } from "../utils/responseHelper";
 
@@ -29,6 +29,23 @@ export async function listCategories(req: Request, res: Response) {
 }
 
 export async function listCategoryByProductCount(req: Request, res: Response) {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 10));
+    const offset = (page - 1) * limit;
+    const conditions = [isNull(Categories.deleted_at)];
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const status = req.query.status;
+
+    if (search) {
+        conditions.push(or(
+            ilike(Categories.name, `%${search}%`),
+            ilike(Categories.description, `%${search}%`),
+        )!);
+    }
+    if (status === "active") conditions.push(eq(Categories.is_active, true));
+    if (status === "inactive") conditions.push(eq(Categories.is_active, false));
+
+    const where = and(...conditions);
     const [categories, [{ count }]] = await Promise.all([
         db.select({
             id: Categories.id,
@@ -40,14 +57,20 @@ export async function listCategoryByProductCount(req: Request, res: Response) {
             color: Categories.color,
             is_active: Categories.is_active,
             created_at: Categories.created_at,
-            // add any other Category columns you need here
-            products_count: sql<number>`count(${Products.id})`.as("product_count"),
+            products_count: sql<number>`cast(count(${Products.id}) as integer)`,
         })
         .from(Categories)
-        .where(isNull(Categories.deleted_at))
+        .leftJoin(ProductCategories, eq(ProductCategories.category_id, Categories.id))
+        .leftJoin(Products, and(
+            eq(Products.id, ProductCategories.product_id),
+            isNull(Products.deleted_at),
+        ))
+        .where(where)
         .groupBy(Categories.id)
-        .orderBy(asc(Categories.name)),
-        db.select({ count: sql<number>`count(*)` }).from(Categories).where(isNull(Categories.deleted_at))
+        .orderBy(asc(Categories.name))
+        .limit(limit)
+        .offset(offset),
+        db.select({ count: sql<number>`count(*)` }).from(Categories).where(where),
     ])
 
     return ListResponse(res, categories, Number(count));
