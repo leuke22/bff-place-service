@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
-import { eq, and, isNull, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, or, isNull, gte, lte, desc, sql, ilike, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { Shifts, Payments, Orders } from "../models";
-import { openShiftSchema, closeShiftSchema } from "../utils/validators";
-import { DataResponse, ListResponse } from "../utils/responseHelper";
+import { Shifts, Payments, Orders, Users } from "../models";
+import { openShiftSchema, closeShiftSchema, listShiftsQuerySchema } from "../utils/validators";
+import { DataResponse } from "../utils/responseHelper";
 
 // Every payment this cashier took between `from` and `to` is one "earning" event.
 // Cash sales are net of change given back — that's what actually stays in the drawer.
@@ -164,13 +164,78 @@ export async function closeShift(req: Request, res: Response) {
 }
 
 export async function listShifts(req: Request, res: Response) {
-    const [shifts, [{ count }]] = await Promise.all([
-        db.query.Shifts.findMany({
-            orderBy: (s, { desc }) => [desc(s.opened_at)],
-            with: { cashier: { columns: { id: true, first_name: true, last_name: true } } },
-        }),
-        db.select({ count: sql<number>`count(*)` }).from(Shifts),
+    const parsed = listShiftsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
+    }
+    const { date_from, date_to, cashier_id, status, search, page, limit } = parsed.data;
+
+    const conditions: SQL[] = [];
+    // Dates are calendar days in the business timezone (Asia/Manila, UTC+8, no DST).
+    if (date_from) conditions.push(gte(Shifts.opened_at, new Date(`${date_from}T00:00:00+08:00`)));
+    if (date_to) conditions.push(lte(Shifts.opened_at, new Date(`${date_to}T23:59:59.999+08:00`)));
+    if (cashier_id) conditions.push(eq(Shifts.cashier_id, cashier_id));
+    if (status === "open") conditions.push(isNull(Shifts.closed_at));
+    if (status === "balanced") conditions.push(sql`${Shifts.closed_at} is not null and abs(${Shifts.variance}) < 0.01`);
+    if (status === "variance") conditions.push(sql`${Shifts.closed_at} is not null and abs(${Shifts.variance}) >= 0.01`);
+    if (search) {
+        const term = `%${search.replace(/[%_\\]/g, "\\$&")}%`;
+        const asId = /^#?\d+$/.test(search) ? Number(search.replace("#", "")) : null;
+        const match = or(
+            ilike(Users.first_name, term),
+            ilike(Users.last_name, term),
+            sql`concat(${Users.first_name}, ' ', ${Users.last_name}) ilike ${term}`,
+            asId !== null ? eq(Shifts.id, asId) : undefined,
+        );
+        if (match) conditions.push(match);
+    }
+    const where = conditions.length ? and(...conditions) : undefined;
+
+    const [rows, [stats]] = await Promise.all([
+        db
+            .select({
+                id: Shifts.id,
+                cashier_id: Shifts.cashier_id,
+                opening_cash: Shifts.opening_cash,
+                closing_cash: Shifts.closing_cash,
+                expected_cash: Shifts.expected_cash,
+                variance: Shifts.variance,
+                opened_at: Shifts.opened_at,
+                closed_at: Shifts.closed_at,
+                cashier: { id: Users.id, first_name: Users.first_name, last_name: Users.last_name },
+            })
+            .from(Shifts)
+            .innerJoin(Users, eq(Shifts.cashier_id, Users.id))
+            .where(where)
+            .orderBy(desc(Shifts.opened_at))
+            .limit(limit)
+            .offset((page - 1) * limit),
+        // Stats cover every shift matching the filters, not just the current page.
+        db
+            .select({
+                total_shifts: sql<number>`count(*)`,
+                open_shifts: sql<number>`count(*) filter (where ${Shifts.closed_at} is null)`,
+                total_expected: sql<string>`coalesce(sum(${Shifts.expected_cash}), 0)`,
+                total_variance: sql<string>`coalesce(sum(${Shifts.variance}), 0)`,
+                variance_shifts: sql<number>`count(*) filter (where ${Shifts.closed_at} is not null and abs(${Shifts.variance}) >= 0.01)`,
+            })
+            .from(Shifts)
+            .innerJoin(Users, eq(Shifts.cashier_id, Users.id))
+            .where(where),
     ]);
 
-    return ListResponse(res, shifts, Number(count));
+    return res.status(200).json({
+        success: true,
+        response: {
+            count: Number(stats.total_shifts),
+            rows,
+            stats: {
+                total_shifts: Number(stats.total_shifts),
+                open_shifts: Number(stats.open_shifts),
+                total_expected: Number(stats.total_expected).toFixed(2),
+                total_variance: Number(stats.total_variance).toFixed(2),
+                variance_shifts: Number(stats.variance_shifts),
+            },
+        },
+    });
 }
