@@ -95,15 +95,17 @@ export const orderItemSchema = z.object({
     notes: z.string().max(255).optional(),
 });
 
+export const createPaymentSchema = z.object({
+    method: z.enum(["cash", "gcash", "card", "bank_transfer"], { message: "Invalid payment method" }),
+    amount_tendered: z.number().positive("amount_tendered must be greater than 0"),
+});
+
 export const createOrderSchema = z.object({
     order_type: z.enum(["dine_in", "takeout"], { message: "order_type must be dine_in or takeout" }),
     discount: z.number().nonnegative().default(0),
     items: z.array(orderItemSchema).min(1, "At least one item is required"),
-});
-
-export const createPaymentSchema = z.object({
-    method: z.enum(["cash", "gcash", "card", "bank_transfer"], { message: "Invalid payment method" }),
-    amount_tendered: z.number().positive("amount_tendered must be greater than 0"),
+    // Payment-first: an order can only be placed together with its payment.
+    payment: createPaymentSchema,
 });
 
 export const openShiftSchema = z.object({
