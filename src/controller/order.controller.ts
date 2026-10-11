@@ -5,6 +5,7 @@ import { db } from "../db";
 import { Orders, OrderItems, Products, ProductVariants, Shifts } from "../models";
 import { createOrderSchema, updateOrderStatusSchema } from "../utils/validators";
 import { DataResponse, ListResponse } from "../utils/responseHelper";
+import { recordPayment } from "./payment.controller";
 
 const ORDER_STATUSES = ["pending", "preparing", "ready", "completed", "cancelled"] as const;
 type OrderStatus = (typeof ORDER_STATUSES)[number];
@@ -25,8 +26,14 @@ export async function createOrder(req: Request, res: Response) {
     if (!parsed.success) {
         return res.status(400).json({ message: "Validation error", errors: z.treeifyError(parsed.error) });
     }
-    const { order_type, discount, items } = parsed.data;
+    const { order_type, discount, items, payment } = parsed.data;
     const cashierId = req.user!.user_id;
+
+    if (payment.method !== "cash") {
+        return res.status(400).json({
+            message: "Online payment methods are not available yet. A payment gateway integration is coming soon — please use cash for now.",
+        });
+    }
 
     const openShift = await db.query.Shifts.findFirst({
         where: and(eq(Shifts.cashier_id, cashierId), isNull(Shifts.closed_at)),
@@ -97,6 +104,11 @@ export async function createOrder(req: Request, res: Response) {
     }
     const totalCents = subtotalCents - discountCents;
 
+    const tenderedCents = toCents(payment.amount_tendered);
+    if (tenderedCents < totalCents) {
+        return res.status(400).json({ message: "Amount tendered is less than the order total" });
+    }
+
     const order = await db.transaction(async (tx) => {
         const [created] = await tx
             .insert(Orders)
@@ -121,7 +133,16 @@ export async function createOrder(req: Request, res: Response) {
             .values(lines.map((line) => ({ ...line, order_id: created.id })))
             .returning();
 
-        return { ...numbered, items: insertedItems };
+        // Paid at placement: records the payment, deducts stock and moves the order to "preparing".
+        const paid = await recordPayment(tx, {
+            order: { id: numbered.id, order_number: numbered.order_number, items: insertedItems },
+            method: payment.method,
+            amountTendered: tenderedCents / 100,
+            change: (tenderedCents - totalCents) / 100,
+            userId: cashierId,
+        });
+
+        return { ...paid.order, items: insertedItems, payments: [paid.payment] };
     });
 
     return DataResponse(res, order, 201);

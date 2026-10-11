@@ -3,12 +3,91 @@ import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { Orders, Payments, ProductIngredients, Ingredients, StockMovements } from "../models";
-import { createPaymentSchema } from "../utils/validators";
+import { createPaymentSchema, type CreatePaymentInput } from "../utils/validators";
 import { DataResponse } from "../utils/responseHelper";
 
 // Payment is what authorizes the kitchen to start — it's only valid on a freshly
 // placed order, and it's what moves the order into "preparing", not "completed".
 const ACTIVE_STATUSES = ["pending"] as const;
+
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Records a cash payment, deducts recipe ingredients and moves the order to "preparing".
+ * Must run inside a transaction so an order is never paid without its stock being updated.
+ */
+export async function recordPayment(
+    tx: Transaction,
+    params: {
+        order: { id: number; order_number: string; items: { product_id: number; quantity: number }[] };
+        method: CreatePaymentInput["method"];
+        amountTendered: number;
+        change: number;
+        userId: number;
+    }
+) {
+    const { order, method, amountTendered, change, userId } = params;
+
+    const [payment] = await tx
+        .insert(Payments)
+        .values({
+            order_id: order.id,
+            method,
+            amount_tendered: amountTendered.toFixed(2),
+            change: change.toFixed(2),
+        })
+        .returning();
+
+    const productIds = [...new Set(order.items.map((i) => i.product_id))];
+    const recipeRows = productIds.length
+        ? await tx.query.ProductIngredients.findMany({
+            where: inArray(ProductIngredients.product_id, productIds),
+        })
+        : [];
+
+    const requiredByIngredient = new Map<number, number>();
+    for (const item of order.items) {
+        for (const recipe of recipeRows.filter((r) => r.product_id === item.product_id)) {
+            const needed = Number(recipe.quantity_used) * item.quantity;
+            requiredByIngredient.set(
+                recipe.ingredient_id,
+                (requiredByIngredient.get(recipe.ingredient_id) ?? 0) + needed
+            );
+        }
+    }
+
+    for (const [ingredientId, quantityNeeded] of requiredByIngredient) {
+        const ingredient = await tx.query.Ingredients.findFirst({ where: eq(Ingredients.id, ingredientId) });
+        if (!ingredient) continue;
+
+        // Deduction still happens at payment time, not at "completed" — once paid,
+        // the kitchen is committed to using these ingredients to prepare the order.
+        const newStock = Number(ingredient.current_stock) - quantityNeeded;
+
+        await tx.insert(StockMovements).values({
+            ingredient_id: ingredientId,
+            type: "out",
+            quantity: quantityNeeded.toFixed(3),
+            reason: `Used in order ${order.order_number}`,
+            reference_type: "order",
+            reference_id: order.id,
+            created_by: userId,
+        });
+
+        await tx
+            .update(Ingredients)
+            .set({ current_stock: newStock.toFixed(3), updated_at: new Date() })
+            .where(eq(Ingredients.id, ingredientId));
+    }
+
+    const [updatedOrder] = await tx
+        .update(Orders)
+        .set({ status: "preparing", updated_at: new Date() })
+        .where(eq(Orders.id, order.id))
+        .returning();
+
+    return { payment, order: updatedOrder };
+}
 
 export async function payOrder(req: Request, res: Response) {
     const uuid = req.params.id as string;
@@ -43,71 +122,13 @@ export async function payOrder(req: Request, res: Response) {
     const change = amount_tendered - total;
 
     try {
-        const result = await db.transaction(async (tx) => {
-            const [payment] = await tx
-                .insert(Payments)
-                .values({
-                    order_id: order.id,
-                    method,
-                    amount_tendered: amount_tendered.toFixed(2),
-                    change: change.toFixed(2),
-                })
-                .returning();
-
-            const productIds = [...new Set(order.items.map((i) => i.product_id))];
-            const recipeRows = productIds.length
-                ? await tx.query.ProductIngredients.findMany({
-                    where: inArray(ProductIngredients.product_id, productIds),
-                })
-                : [];
-
-            const requiredByIngredient = new Map<number, number>();
-            for (const item of order.items) {
-                for (const recipe of recipeRows.filter((r) => r.product_id === item.product_id)) {
-                    const needed = Number(recipe.quantity_used) * item.quantity;
-                    requiredByIngredient.set(
-                        recipe.ingredient_id,
-                        (requiredByIngredient.get(recipe.ingredient_id) ?? 0) + needed
-                    );
-                }
-            }
-
-            for (const [ingredientId, quantityNeeded] of requiredByIngredient) {
-                const ingredient = await tx.query.Ingredients.findFirst({ where: eq(Ingredients.id, ingredientId) });
-                if (!ingredient) continue;
-
-                // Deduction still happens at payment time, not at "completed" — once paid,
-                // the kitchen is committed to using these ingredients to prepare the order.
-                const newStock = Number(ingredient.current_stock) - quantityNeeded;
-
-                await tx.insert(StockMovements).values({
-                    ingredient_id: ingredientId,
-                    type: "out",
-                    quantity: quantityNeeded.toFixed(3),
-                    reason: `Used in order ${order.order_number}`,
-                    reference_type: "order",
-                    reference_id: order.id,
-                    created_by: userId,
-                });
-
-                await tx
-                    .update(Ingredients)
-                    .set({ current_stock: newStock.toFixed(3), updated_at: new Date() })
-                    .where(eq(Ingredients.id, ingredientId));
-            }
-
-            const [updatedOrder] = await tx
-                .update(Orders)
-                .set({ status: "preparing", updated_at: new Date() })
-                .where(eq(Orders.id, order.id))
-                .returning();
-
-            return { payment, order: updatedOrder };
-        });
+        const result = await db.transaction((tx) =>
+            recordPayment(tx, { order, method, amountTendered: amount_tendered, change, userId })
+        );
 
         return DataResponse(res, result, 201);
     } catch (err) {
         console.error(err);
         return res.status(500).json({ message: "Failed to process payment" });
     }
-}
+}
