@@ -178,6 +178,24 @@ export const updateOrderStatusSchema = z.object({
 
 export const updateUnitSchema = createUnitSchema.partial();
 
+export const createDiscountSchema = z.object({
+    name: z.string().trim().min(1, "Name is required").max(100),
+    type: z.enum(["percent", "fixed"], { message: "type must be percent or fixed" }),
+    value: z.number().positive("value must be greater than 0"),
+    is_active: z.boolean().optional(),
+}).refine((d) => d.type !== "percent" || d.value <= 100, {
+    message: "A percent discount cannot be more than 100",
+    path: ["value"],
+});
+
+export const updateDiscountSchema = z.object({
+    name: z.string().trim().min(1, "Name is required").max(100),
+    type: z.enum(["percent", "fixed"], { message: "type must be percent or fixed" }),
+    value: z.number().positive("value must be greater than 0"),
+    is_active: z.boolean(),
+}).partial();
+
+
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
@@ -216,6 +234,9 @@ export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+export type CreateDiscountInput = z.infer<typeof createDiscountSchema>;
+export type UpdateDiscountInput = z.infer<typeof updateDiscountSchema>;
 
 export type CreateUnitInput = z.infer<typeof createUnitSchema>;
 export type UpdateUnitInput = z.infer<typeof updateUnitSchema>;
