@@ -10,7 +10,7 @@ const app = express();
 app.use(cookieParser());
 
 app.use(cors({
-    origin: "http://localhost:3001", 
+    origin: ["http://localhost:3001", "http://192.168.0.103:3001"],
     credentials: true 
 }));
 
@@ -41,7 +41,7 @@ async function start() {
     }
 
     const port = Number(env.PORT);
-    app.listen(port, () => {
+    app.listen(port, '0.0.0.0', () => {
         console.log(`Server running on http://localhost:${port}`);
     });
 }
